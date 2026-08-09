@@ -23,10 +23,13 @@ TOKEN = os.getenv("BOT_TOKEN", "").strip()
 DATA_FILE = "bot_data.json"
 
 # =========================================================================
-# 📌 DAFTAR PENANDA KHUSUS MANUAL (OPSIONAL OVERRIDE)
+# 📌 DAFTAR PEMETAAN USERNAME -> NAME TAG
+# Tambahkan username (huruf kecil) beserta Name Tag-nya di sini
 # =========================================================================
-USER_ROLES = {
-    "@lubu_hiat": "LUBU",          
+USER_NAME_TAGS = {
+    "@lubu_hiat": "LUBU PAKAM",
+    # Silakan tambahkan username lainnya di bawah ini:
+    # "@username_lain": "NAME TAG KHUSUS",
 }
 
 def load_data():
@@ -57,25 +60,21 @@ async def is_admin(bot, chat_id, user_id):
     except Exception:
         return False
 
-# Pengecekan apakah sebuah grup adalah Grup Staff
 def is_staff_group(title):
     return "STAFF" in (title or "").upper()
 
-# Fungsi Membersihkan Tag/Mention (@username) dari isi pesan
 def remove_mentions(text):
     if not text:
         return text
     cleaned = re.sub(r'@[a-zA-Z0-9_]+', '', text).strip()
     return cleaned
 
-# Merekam Grup Secara Diam-Diam
 def silent_register_group(chat):
     if chat.type in ['group', 'supergroup']:
         data = load_data()
         data["known_groups"][str(chat.id)] = chat.title or f"Grup {chat.id}"
         save_data(data)
 
-# Tampilan Utama Control Hub (Di Grup Staff)
 async def render_main_menu(update_or_query, context, chat, user, is_edit=False):
     silent_register_group(chat)
     
@@ -114,7 +113,7 @@ async def render_main_menu(update_or_query, context, chat, user, is_edit=False):
         text = (
             "⚠️ **Belum ada grup vendor yang terdeteksi!**\n\n"
             "**Cara Menambah Vendor:**\n"
-            "Masukkan bot ini ke grup vendor & jadikan Admin. Bot akan otomatis mendeteksi nama grup tersebut tanpa perintah di sana."
+            "Masukkan bot ini ke grup vendor & jadikan Admin."
         )
 
     keyboard.append([InlineKeyboardButton("🔄 Refresh Tampilan Utama", callback_data="main_menu")])
@@ -125,7 +124,6 @@ async def render_main_menu(update_or_query, context, chat, user, is_edit=False):
     else:
         await update_or_query.message.reply_text(text, reply_markup=reply_markup, parse_mode="Markdown")
 
-# Command /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
     silent_register_group(chat)
@@ -139,7 +137,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="Markdown"
         )
 
-# Command /menu
 async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
     user = update.effective_user
@@ -153,7 +150,6 @@ async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await render_main_menu(update, context, chat, user, is_edit=False)
 
-# Command /resetgrup
 async def reset_groups_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
     user = update.effective_user
@@ -174,7 +170,6 @@ async def reset_groups_command(update: Update, context: ContextTypes.DEFAULT_TYP
         parse_mode="Markdown"
     )
 
-# Handler Klik Tombol
 async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user = query.from_user
@@ -243,7 +238,6 @@ async def noop_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
-# Logika Pengiriman Pesan
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or (update.message.text and update.message.text.startswith('/')):
         return
@@ -262,13 +256,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     target_chat_id = None
     reply_to_target_msg_id = None
 
-    # Pengecekan Balasan (Reply Langsung)
     if update.message.reply_to_message:
         replied_msg_id = update.message.reply_to_message.message_id
         target_chat_id = data["messages"].get(f"origin_chat_{chat_id_str}_{replied_msg_id}")
         reply_to_target_msg_id = data["messages"].get(f"map_{chat_id_str}_{replied_msg_id}")
 
-    # Pengecekan Target Aktif
     if not target_chat_id:
         if is_from_staff:
             target_chat_id = data["active_target"].get(chat_id_str)
@@ -296,54 +288,53 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         msg_key = f"{chat_id_str}_{message_id}"
 
-        # --- LOGIKA PENENTUAN HEADER LABEL ---
         sender_name = user.full_name or user.first_name or "Pengirim"
         username_key = f"@{user.username.lower()}" if user.username else ""
         
-        custom_title = ""
-        try:
-            chat_member = await context.bot.get_chat_member(chat.id, user.id)
-            if hasattr(chat_member, 'custom_title') and chat_member.custom_title:
-                custom_title = chat_member.custom_title
-            elif chat_member.status == 'creator':
-                custom_title = "Owner"
-        except Exception:
-            pass
-
-        # Menentukan sebutan/role
-        if username_key and username_key in USER_ROLES:
-            role_label = USER_ROLES[username_key]
-        elif user.id in USER_ROLES:
-            role_label = USER_ROLES[user.id]
-        elif custom_title:
-            role_label = custom_title
+        # Pengecekan Name Tag berdasarkan USER_NAME_TAGS
+        if username_key and username_key in USER_NAME_TAGS:
+            name_tag = USER_NAME_TAGS[username_key]
+        elif user.id in USER_NAME_TAGS:
+            name_tag = USER_NAME_TAGS[user.id]
         else:
-            role_label = ""
+            custom_title = ""
+            try:
+                chat_member = await context.bot.get_chat_member(chat.id, user.id)
+                if hasattr(chat_member, 'custom_title') and chat_member.custom_title:
+                    custom_title = chat_member.custom_title
+                elif chat_member.status == 'creator':
+                    custom_title = "Owner"
+                elif chat_member.status == 'administrator':
+                    custom_title = "Admin"
+            except Exception:
+                pass
+            
+            name_tag = custom_title if custom_title else "-"
 
-        if role_label:
-            label_header = f"👤 **[{sender_name} - {role_label}]**\n\n"
-        else:
-            label_header = f"👤 **[{sender_name}]**\n\n"
+        # Format Tampilan Header Pesan
+        header_block = (
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"👤 **Pengirim** : {sender_name}\n"
+            f"🏷 **Name Tag**  : {name_tag}\n"
+            f"📍 **Asal Grup** : {chat_title}\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n\n"
+        )
 
         if not is_from_staff:
-            # PESAN DARI VENDOR KE GRUP STAFF AG
             keyboard_buttons = [
-                [InlineKeyboardButton(f"📍 Vendor: {chat_title}", callback_data="noop")],
                 [
-                    InlineKeyboardButton("💬 Gabung Percakapan", callback_data=f"switch_{chat_id_str}"),
-                    InlineKeyboardButton("👤 Info Pengirim", callback_data=f"info_{msg_key}")
+                    InlineKeyboardButton("💬 Balas ke Vendor ini", callback_data=f"switch_{chat_id_str}"),
+                    InlineKeyboardButton("👤 Detail Pengirim", callback_data=f"info_{msg_key}")
                 ],
                 [InlineKeyboardButton("🏠 Tampilan Utama", callback_data="main_menu")]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard_buttons)
 
-            # ISI PESAN DARI USER
             msg_text = update.message.text or update.message.caption or ""
             clean_text = remove_mentions(msg_text)
 
-            # 🔴 FIX: MENGGUNAKAN SEND_MESSAGE SUPAYA LABEL DITAMPILKAN SECARA PAKSA
             if update.message.text:
-                full_text = f"{label_header}{clean_text if clean_text else '*(Pesan Teks)*'}"
+                full_text = f"{header_block}{clean_text if clean_text else '*(Pesan Teks)*'}"
                 sent_msg = await context.bot.send_message(
                     chat_id=int(target_chat_id),
                     text=full_text,
@@ -353,7 +344,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
             elif update.message.photo:
                 photo_file_id = update.message.photo[-1].file_id
-                full_caption = f"{label_header}{clean_text}".strip()
+                full_caption = f"{header_block}{clean_text}".strip()
                 sent_msg = await context.bot.send_photo(
                     chat_id=int(target_chat_id),
                     photo=photo_file_id,
@@ -364,7 +355,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
             elif update.message.document:
                 doc_file_id = update.message.document.file_id
-                full_caption = f"{label_header}{clean_text}".strip()
+                full_caption = f"{header_block}{clean_text}".strip()
                 sent_msg = await context.bot.send_document(
                     chat_id=int(target_chat_id),
                     document=doc_file_id,
@@ -374,7 +365,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     parse_mode="Markdown"
                 )
             else:
-                # Untuk media tipe lain (sticker, voice, dll.)
                 sent_msg = await context.bot.copy_message(
                     chat_id=int(target_chat_id),
                     from_chat_id=int(chat_id_str),
@@ -384,7 +374,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
 
         else:
-            # PESAN DARI STAFF AG KE GRUP VENDOR (Langsung copy tanpa penanda)
             sent_msg = await context.bot.copy_message(
                 chat_id=int(target_chat_id),
                 from_chat_id=int(chat_id_str),
