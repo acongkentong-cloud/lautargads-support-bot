@@ -23,15 +23,10 @@ TOKEN = os.getenv("BOT_TOKEN", "").strip()
 DATA_FILE = "bot_data.json"
 
 # =========================================================================
-# 📌 DAFTAR PENANDA MANUAL (MENGGUNAKAN USERNAME ATAU USER ID)
-# 
-# Anda bisa mengisi menggunakan username (diketik huruf kecil diawali @)
-# atau angka User ID Telegram.
+# 📌 DAFTAR PENANDA KHUSUS MANUAL (OPSIONAL OVERRIDE)
 # =========================================================================
 USER_ROLES = {
-    "@lubu_hiat": "LUBU",          # Menggunakan Username (harus diawali @ dan huruf kecil)
-    # "@username_lain": "SELLER A",
-    # 123456789: "ADMIN",         # Jika mau pakai User ID (angka)
+    "@lubu_hiat": "LUBU",          
 }
 
 def load_data():
@@ -66,7 +61,7 @@ async def is_admin(bot, chat_id, user_id):
 def is_staff_group(title):
     return "STAFF" in (title or "").upper()
 
-# Fungsi Membersihkan Tag/Mention (@username)
+# Fungsi Membersihkan Tag/Mention (@username) dari isi pesan
 def remove_mentions(text):
     if not text:
         return text
@@ -301,20 +296,37 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         msg_key = f"{chat_id_str}_{message_id}"
 
-        # --- LOGIKA PENENTUAN LABEL/ROLE ---
-        sender_name = user.full_name or "User"
-        username = f"@{user.username.lower()}" if user.username else ""
+        # --- LOGIKA BACA NAMETAG/CUSTOM TITLE GRUP ---
+        sender_name = user.full_name or user.first_name or "Pengirim"
+        username_key = f"@{user.username.lower()}" if user.username else ""
         
-        # Cek berdasarkan Username (@username) atau User ID (angka)
-        if username and username in USER_ROLES:
-            role_label = USER_ROLES[username]
+        custom_title = ""
+        
+        # Cek status/role member langsung di dalam grup pengirim
+        try:
+            chat_member = await context.bot.get_chat_member(chat.id, user.id)
+            if hasattr(chat_member, 'custom_title') and chat_member.custom_title:
+                custom_title = chat_member.custom_title
+            elif chat_member.status == 'creator':
+                custom_title = "Owner"
+        except Exception:
+            pass
+
+        # Cek apakah ada penanda khusus manual dari USER_ROLES
+        if username_key and username_key in USER_ROLES:
+            role_label = USER_ROLES[username_key]
         elif user.id in USER_ROLES:
             role_label = USER_ROLES[user.id]
+        elif custom_title:
+            role_label = custom_title
         else:
-            # Jika tidak terdaftar, gunakan default
-            role_label = "STAFF" if is_from_staff else "SELLER"
+            role_label = ""
 
-        label = f"👤 **[{sender_name} - {role_label}]**\n"
+        # Format Label Header
+        if role_label:
+            label_header = f"👤 **[{sender_name} - {role_label}]**\n\n"
+        else:
+            label_header = f"👤 **[{sender_name}]**\n\n"
 
         if not is_from_staff:
             # PESAN DARI VENDOR KE GRUP STAFF AG
@@ -333,7 +345,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if not clean_text:
                     clean_text = "*(Pesan berisi tag)*"
                 
-                full_text = f"{label}{clean_text}"
+                full_text = f"{label_header}{clean_text}"
 
                 sent_msg = await context.bot.send_message(
                     chat_id=int(target_chat_id),
@@ -344,7 +356,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
             else:
                 clean_caption = remove_mentions(update.message.caption) if update.message.caption else ""
-                full_caption = f"{label}{clean_caption}".strip()
+                full_caption = f"{label_header}{clean_caption}".strip()
 
                 sent_msg = await context.bot.copy_message(
                     chat_id=int(target_chat_id),
