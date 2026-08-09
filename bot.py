@@ -1,5 +1,6 @@
 import os
 import json
+import re
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -26,7 +27,7 @@ DATA_FILE = "bot_data.json"
 # =========================================================================
 USER_NAME_TAGS = {
     "@lubu_hiat": "LUBU PAKAM",
-    "@Zkyy07": "ADS",
+    "@zkyy07": "ADS",
     "@max77kix": "MAX",
     "@tiliqua_gigas": "TILIQUA_AG",
     # "@username_lain": "NAME TAG",
@@ -68,6 +69,37 @@ def silent_register_group(chat):
         data = load_data()
         data["known_groups"][str(chat.id)] = chat.title or f"Grup {chat.id}"
         save_data(data)
+
+# Fungsi Membersihkan Tag/Mention berbasis Text & Telegram Entities
+def clean_mentions_from_message(message):
+    text = message.text or message.caption or ""
+    entities = message.entities or message.caption_entities or []
+
+    if not text:
+        return ""
+
+    # 1. Hapus berdasarkan Telegram Entities (Mention @username & Text Mention tanpa username)
+    mention_entities = [
+        e for e in entities if e.type in ["mention", "text_mention"]
+    ]
+    # Urutkan dari offset terbesar agar indeks pemotongan string tidak bergeser
+    mention_entities.sort(key=lambda x: x.offset, reverse=True)
+
+    text_list = list(text)
+    for ent in mention_entities:
+        start = ent.offset
+        end = ent.offset + ent.length
+        del text_list[start:end]
+
+    cleaned_text = "".join(text_list)
+
+    # 2. Hapus sisa-sisa regex @username yang mungkin tidak terdeteksi entity
+    cleaned_text = re.sub(r'@[^\s]+', '', cleaned_text)
+    
+    # Bersihkan spasi ganda / spasi di awal-akhir
+    cleaned_text = re.sub(r' +', ' ', cleaned_text).strip()
+
+    return cleaned_text
 
 async def render_main_menu(update_or_query, context, chat, user, is_edit=False):
     silent_register_group(chat)
@@ -241,15 +273,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         if not is_from_staff:
-            # DARI VENDOR KE STAFF (MENGGUNAKAN HEADER PENANDA)
+            # DARI VENDOR KE STAFF (MENGGUNAKAN HEADER PENANDA & PEMBERSIHAN MENTION)
             keyboard_buttons = [
                 [InlineKeyboardButton("💬 Balas ke Vendor ini", callback_data=f"switch_{chat_id_str}")],
                 [InlineKeyboardButton("🏠 Tampilan Utama", callback_data="main_menu")]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard_buttons)
 
-            msg_text = update.message.text or update.message.caption or ""
-            full_text = f"{header_block}{msg_text}"
+            # Bersihkan pesan dari tag/mention terlebih dahulu
+            clean_text = clean_mentions_from_message(update.message)
+            full_text = f"{header_block}{clean_text}"
 
             if update.message.text:
                 sent_msg = await context.bot.send_message(
