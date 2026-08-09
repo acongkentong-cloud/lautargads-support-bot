@@ -26,7 +26,7 @@ DATA_FILE = "bot_data.json"
 # =========================================================================
 USER_NAME_TAGS = {
     "@lubu_hiat": "LUBU PAKAM",
-    "@lautaromartinez": "LUBU PAKAM",
+    "@max77kix": "MAX",
     # Tambahkan username lainnya di sini:
     # "@username_lain": "NAME TAG",
 }
