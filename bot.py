@@ -22,6 +22,18 @@ logger = logging.getLogger(__name__)
 TOKEN = os.getenv("BOT_TOKEN", "").strip()
 DATA_FILE = "bot_data.json"
 
+# =========================================================================
+# 📌 DAFTAR PENANDA MANUAL (MENGGUNAKAN USERNAME ATAU USER ID)
+# 
+# Anda bisa mengisi menggunakan username (diketik huruf kecil diawali @)
+# atau angka User ID Telegram.
+# =========================================================================
+USER_ROLES = {
+    "@lubu_hiat": "LUBU",          # Menggunakan Username (harus diawali @ dan huruf kecil)
+    # "@username_lain": "SELLER A",
+    # 123456789: "ADMIN",         # Jika mau pakai User ID (angka)
+}
+
 def load_data():
     if not os.path.exists(DATA_FILE):
         return {"known_groups": {}, "active_target": {}, "vendor_links": {}, "messages": {}}
@@ -58,7 +70,6 @@ def is_staff_group(title):
 def remove_mentions(text):
     if not text:
         return text
-    # Menghapus semua pola @username
     cleaned = re.sub(r'@[a-zA-Z0-9_]+', '', text).strip()
     return cleaned
 
@@ -290,6 +301,21 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         msg_key = f"{chat_id_str}_{message_id}"
 
+        # --- LOGIKA PENENTUAN LABEL/ROLE ---
+        sender_name = user.full_name or "User"
+        username = f"@{user.username.lower()}" if user.username else ""
+        
+        # Cek berdasarkan Username (@username) atau User ID (angka)
+        if username and username in USER_ROLES:
+            role_label = USER_ROLES[username]
+        elif user.id in USER_ROLES:
+            role_label = USER_ROLES[user.id]
+        else:
+            # Jika tidak terdaftar, gunakan default
+            role_label = "STAFF" if is_from_staff else "SELLER"
+
+        label = f"👤 **[{sender_name} - {role_label}]**\n"
+
         if not is_from_staff:
             # PESAN DARI VENDOR KE GRUP STAFF AG
             keyboard_buttons = [
@@ -302,27 +328,32 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ]
             reply_markup = InlineKeyboardMarkup(keyboard_buttons)
 
-            # Membersihkan tag (@) dari isi teks/caption pesan vendor
             if update.message.text:
                 clean_text = remove_mentions(update.message.text)
                 if not clean_text:
                     clean_text = "*(Pesan berisi tag)*"
                 
+                full_text = f"{label}{clean_text}"
+
                 sent_msg = await context.bot.send_message(
                     chat_id=int(target_chat_id),
-                    text=clean_text,
+                    text=full_text,
                     reply_to_message_id=reply_to_target_msg_id,
-                    reply_markup=reply_markup
+                    reply_markup=reply_markup,
+                    parse_mode="Markdown"
                 )
             else:
-                clean_caption = remove_mentions(update.message.caption) if update.message.caption else None
+                clean_caption = remove_mentions(update.message.caption) if update.message.caption else ""
+                full_caption = f"{label}{clean_caption}".strip()
+
                 sent_msg = await context.bot.copy_message(
                     chat_id=int(target_chat_id),
                     from_chat_id=int(chat_id_str),
                     message_id=message_id,
-                    caption=clean_caption,
+                    caption=full_caption,
                     reply_to_message_id=reply_to_target_msg_id,
-                    reply_markup=reply_markup
+                    reply_markup=reply_markup,
+                    parse_mode="Markdown"
                 )
 
         else:
