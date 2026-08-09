@@ -296,13 +296,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         msg_key = f"{chat_id_str}_{message_id}"
 
-        # --- LOGIKA BACA NAMETAG/CUSTOM TITLE GRUP ---
+        # --- LOGIKA PENENTUAN HEADER LABEL ---
         sender_name = user.full_name or user.first_name or "Pengirim"
         username_key = f"@{user.username.lower()}" if user.username else ""
         
         custom_title = ""
-        
-        # Cek status/role member langsung di dalam grup pengirim
         try:
             chat_member = await context.bot.get_chat_member(chat.id, user.id)
             if hasattr(chat_member, 'custom_title') and chat_member.custom_title:
@@ -312,7 +310,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
 
-        # Cek apakah ada penanda khusus manual dari USER_ROLES
+        # Menentukan sebutan/role
         if username_key and username_key in USER_ROLES:
             role_label = USER_ROLES[username_key]
         elif user.id in USER_ROLES:
@@ -322,7 +320,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             role_label = ""
 
-        # Format Label Header
         if role_label:
             label_header = f"👤 **[{sender_name} - {role_label}]**\n\n"
         else:
@@ -340,13 +337,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ]
             reply_markup = InlineKeyboardMarkup(keyboard_buttons)
 
-            if update.message.text:
-                clean_text = remove_mentions(update.message.text)
-                if not clean_text:
-                    clean_text = "*(Pesan berisi tag)*"
-                
-                full_text = f"{label_header}{clean_text}"
+            # ISI PESAN DARI USER
+            msg_text = update.message.text or update.message.caption or ""
+            clean_text = remove_mentions(msg_text)
 
+            # 🔴 FIX: MENGGUNAKAN SEND_MESSAGE SUPAYA LABEL DITAMPILKAN SECARA PAKSA
+            if update.message.text:
+                full_text = f"{label_header}{clean_text if clean_text else '*(Pesan Teks)*'}"
                 sent_msg = await context.bot.send_message(
                     chat_id=int(target_chat_id),
                     text=full_text,
@@ -354,22 +351,40 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     reply_markup=reply_markup,
                     parse_mode="Markdown"
                 )
-            else:
-                clean_caption = remove_mentions(update.message.caption) if update.message.caption else ""
-                full_caption = f"{label_header}{clean_caption}".strip()
-
-                sent_msg = await context.bot.copy_message(
+            elif update.message.photo:
+                photo_file_id = update.message.photo[-1].file_id
+                full_caption = f"{label_header}{clean_text}".strip()
+                sent_msg = await context.bot.send_photo(
                     chat_id=int(target_chat_id),
-                    from_chat_id=int(chat_id_str),
-                    message_id=message_id,
+                    photo=photo_file_id,
                     caption=full_caption,
                     reply_to_message_id=reply_to_target_msg_id,
                     reply_markup=reply_markup,
                     parse_mode="Markdown"
                 )
+            elif update.message.document:
+                doc_file_id = update.message.document.file_id
+                full_caption = f"{label_header}{clean_text}".strip()
+                sent_msg = await context.bot.send_document(
+                    chat_id=int(target_chat_id),
+                    document=doc_file_id,
+                    caption=full_caption,
+                    reply_to_message_id=reply_to_target_msg_id,
+                    reply_markup=reply_markup,
+                    parse_mode="Markdown"
+                )
+            else:
+                # Untuk media tipe lain (sticker, voice, dll.)
+                sent_msg = await context.bot.copy_message(
+                    chat_id=int(target_chat_id),
+                    from_chat_id=int(chat_id_str),
+                    message_id=message_id,
+                    reply_to_message_id=reply_to_target_msg_id,
+                    reply_markup=reply_markup
+                )
 
         else:
-            # PESAN DARI STAFF AG KE GRUP VENDOR
+            # PESAN DARI STAFF AG KE GRUP VENDOR (Langsung copy tanpa penanda)
             sent_msg = await context.bot.copy_message(
                 chat_id=int(target_chat_id),
                 from_chat_id=int(chat_id_str),
