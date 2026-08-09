@@ -22,13 +22,13 @@ TOKEN = os.getenv("BOT_TOKEN", "").strip()
 DATA_FILE = "bot_data.json"
 
 # =========================================================================
-# 📌 DAFTAR PEMETAAN USERNAME -> NAME TAG
-# Tambahkan username (pasti gunakan huruf kecil/lowercase) & Name Tag-nya
+# 📌 DAFTAR PEMETAAN USERNAME -> NAME TAG (Gunakan huruf kecil)
 # =========================================================================
 USER_NAME_TAGS = {
     "@lubu_hiat": "LUBU PAKAM",
     "@lautaromartinez": "LUBU PAKAM",
-    # "@username_lain": "NAME TAG LAIN",
+    # Tambahkan username lainnya di sini:
+    # "@username_lain": "NAME TAG",
 }
 
 def load_data():
@@ -86,9 +86,9 @@ async def render_main_menu(update_or_query, context, chat, user, is_edit=False):
     current_target_name = data["known_groups"].get(current_target_id, "Belum Dipilih") if current_target_id else "Belum Dipilih"
 
     text = (
-        f"🏠 **TAMPILAN UTAMA STAFF HUB**\n\n"
-        f"📍 **Grup Ini:** {chat.title}\n"
-        f"💬 **Target Percakapan Aktif:** **{current_target_name}**\n\n"
+        f"🏠 TAMPILAN UTAMA STAFF HUB\n\n"
+        f"📍 Grup Ini: {chat.title}\n"
+        f"💬 Target Percakapan Aktif: {current_target_name}\n\n"
         f"Silakan pilih grup vendor di bawah untuk berpindah percakapan:"
     )
 
@@ -104,8 +104,8 @@ async def render_main_menu(update_or_query, context, chat, user, is_edit=False):
 
     if not has_vendor:
         text = (
-            "⚠️ **Belum ada grup vendor yang terdeteksi!**\n\n"
-            "**Cara Menambah Vendor:**\n"
+            "⚠️ Belum ada grup vendor yang terdeteksi!\n\n"
+            "Cara Menambah Vendor:\n"
             "Masukkan bot ini ke grup vendor & jadikan Admin."
         )
 
@@ -113,9 +113,9 @@ async def render_main_menu(update_or_query, context, chat, user, is_edit=False):
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     if is_edit:
-        await update_or_query.message.edit_text(text, reply_markup=reply_markup, parse_mode="Markdown")
+        await update_or_query.message.edit_text(text, reply_markup=reply_markup)
     else:
-        await update_or_query.message.reply_text(text, reply_markup=reply_markup, parse_mode="Markdown")
+        await update_or_query.message.reply_text(text, reply_markup=reply_markup)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
@@ -124,10 +124,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if is_staff_group(chat.title):
         keyboard = [[InlineKeyboardButton("🏠 Tampilan Utama (/menu)", callback_data="main_menu")]]
         await update.message.reply_text(
-            f"Bot Staff Hub aktif di **{chat.title}**.\n\n"
-            "Gunakan perintah `/menu` atau tombol di bawah untuk memilih tujuan percakapan.",
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode="Markdown"
+            f"Bot Staff Hub aktif di {chat.title}.\n\n"
+            "Gunakan perintah /menu atau tombol di bawah untuk memilih tujuan percakapan.",
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
 async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -179,10 +178,9 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             keyboard = [[InlineKeyboardButton("🏠 Kembali ke Tampilan Utama", callback_data="main_menu")]]
             await query.message.reply_text(
-                f"🟢 **BERHASIL GABUNG PERCAKAPAN**\n\n"
-                f"Sekarang pesan yang Anda ketik di grup staff ini akan langsung terkirim ke **{target_name}**.",
-                reply_markup=InlineKeyboardMarkup(keyboard),
-                parse_mode="Markdown"
+                f"🟢 BERHASIL GABUNG PERCAKAPAN\n\n"
+                f"Sekarang pesan yang Anda ketik di grup staff ini akan langsung terkirim ke {target_name}.",
+                reply_markup=InlineKeyboardMarkup(keyboard)
             )
         return
 
@@ -232,7 +230,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Ambil Name Tag dari USER_NAME_TAGS
         name_tag = USER_NAME_TAGS.get(username_key, "-")
 
-        # Buat Header Penanda
+        # Format Penanda Header
         header_block = (
             f"━━━━━━━━━━━━━━━━━━━━\n"
             f"👤 Pengirim : {sender_name}\n"
@@ -242,11 +240,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         if not is_from_staff:
-            # PESAN DARI VENDOR KE STAFF
+            # DARI VENDOR KE STAFF (MENGGUNAKAN HEADER PENANDA)
             keyboard_buttons = [
-                [
-                    InlineKeyboardButton("💬 Balas ke Vendor ini", callback_data=f"switch_{chat_id_str}"),
-                ],
+                [InlineKeyboardButton("💬 Balas ke Vendor ini", callback_data=f"switch_{chat_id_str}")],
                 [InlineKeyboardButton("🏠 Tampilan Utama", callback_data="main_menu")]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard_buttons)
@@ -289,7 +285,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
 
         else:
-            # PESAN DARI STAFF KE VENDOR (Diteruskan tanpa header penanda)
+            # DARI STAFF KE VENDOR (DITERUSKAN POLOS)
             sent_msg = await context.bot.copy_message(
                 chat_id=int(target_chat_id),
                 from_chat_id=int(chat_id_str),
